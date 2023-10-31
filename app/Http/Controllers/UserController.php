@@ -5,12 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Services\UserService;
+use Illuminate\Validation\Rules;
+use App\Providers\RouteServiceProvider;
 
 class UserController extends Controller
 {
+    protected $userService;
+
+    public function __construct(UserService $userService)
+    {
+        $this->userService = $userService;
+    }
+
     public function index()
     {
-        $users = User::all();
+        $users = $this->userService->getAll();
         return view('users.index', compact('users'));
     }
 
@@ -22,29 +32,18 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'title' => 'required|in:Mr,Mrs,Ms',
-            'first_name' => 'required|string|max:255',
-            'middle_name' => 'nullable|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'suffex_name' => 'nullable|string|max:255',
-            'username' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'photo' => 'nullable|image|max:2048',
-            'type' => 'nullable|string|max:255',
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         $data = $request->only('title', 'first_name', 'last_name', 'middle_name', 'suffex_name', 'username', 'email', 'password', 'type');
         $data['password'] = Hash::make($request->password);
-        
-        if($request->hasFile('photo')) {
-            $photoPath = $request->file('photo')->store('user_photos', 'public');
-            $data['photo'] = $photoPath;
-        }
+        $this->userService->store($data);
 
-        User::create($data);
-
-        return redirect()->route('users.index')->with('success', 'User created successfully.');
+        return redirect(RouteServiceProvider::INDEX);
     }
 
     public function show(User $user)
@@ -60,7 +59,7 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $request->validate([
-            'title' => 'required|in:Mr,Mrs,Ms',
+            'title' => 'nullable|in:Mr,Mrs,Ms',
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -85,9 +84,9 @@ class UserController extends Controller
             $data['photo'] = $photoPath;
         }
 
-        $user->update($data);
+        $this->userService->update($user, $data);
 
-        return redirect()->route('users.index')->with('success', 'User updated successfully.');
+        return redirect(RouteServiceProvider::INDEX);
     }
 
     public function destroy(User $user)
@@ -96,35 +95,31 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');
     }
 
-    public function trash()
-    {
-        $trashedUsers = User::onlyTrashed()->get();
-        return view('users.trashed', compact('trashedUsers'));
-    }
+    // public function trash()
+    // {
+    //     $trashedUsers = User::onlyTrashed()->get();
+    //     return view('users.trashed', compact('trashedUsers'));
+    // }
 
     public function trashed()
     {
-        $trashedUsers = User::onlyTrashed()->get();
+        $trashedUsers = $this->userService->trash();
         return view('users.trashed', ['users' => $trashedUsers]);
     }
 
     public function restore($id)
     {
-        $user = User::onlyTrashed()->find($id);
-        if (!$user) {
+        if (!$this->userService->restore($id)) {
             return redirect()->back()->with('error', 'User not found.');
         }
-        $user->restore();
         return redirect()->route('users.trashed')->with('success', 'User restored successfully.');
     }
 
     public function delete($id)
     {
-        $user = User::onlyTrashed()->find($id);
-        if (!$user) {
+        if (!$this->userService->forceDelete($id)) {
             return redirect()->back()->with('error', 'User not found.');
         }
-        $user->forceDelete();
         return redirect()->route('users.trashed')->with('success', 'User permanently deleted.');
     }
 }

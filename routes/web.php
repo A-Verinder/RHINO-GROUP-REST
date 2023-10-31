@@ -1,7 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,15 +16,20 @@ use App\Http\Controllers\UserController;
 */
 
 Route::get('/', function () {
-    return view('layouts/app');
+    return view('welcome');
 });
 
-// Route::middleware(['auth'])->group(function(){
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware(['auth', 'verified'])->name('dashboard');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::resource('users', UserController::class);
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('/users/{user}', [UserController::class, 'update'])->name('user.update');
     Route::softDeletes('users', UserController::class);
-    // Route::get('users/{user}/trash', [UserController::class, 'trash'])->name('users.trashed');
-    // Route::get('/trashed', [UserController::class, 'trashed'])->name('users.trashed');
-    // Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
-    // Route::delete('users/{user}/delete', [UserController::class, 'delete'])->name('users.delete');
-// });
+});
+
+require __DIR__.'/auth.php';
